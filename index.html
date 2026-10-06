@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>分數探險家 - 真分數、假分數與帶分數</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;600;700;900&display=swap');
+    body {
+      font-family: 'Noto Sans TC', sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .fraction-line {
+      border-top: 4px solid #1e293b;
+    }
+    .pulse-subtle {
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.95; transform: scale(1.02); }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 flex flex-col justify-between p-2 md:p-4">
+
+  <!-- 頂部標題與控制列 -->
+  <header class="bg-white rounded-2xl shadow-sm p-3 md:p-4 mb-3 flex justify-between items-center border-b-4 border-indigo-400">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 md:w-12 md:h-12 bg-indigo-500 rounded-xl flex items-center justify-center text-white text-xl md:text-2xl font-bold shadow">
+        <i class="fa-solid fa-chart-pie"></i>
+      </div>
+      <div>
+        <h1 class="text-xl md:text-2xl font-black text-indigo-900 tracking-wide">分數探險家</h1>
+        <p class="text-xs md:text-sm text-slate-500 font-bold">觀察圖形 ➔ 填寫分數 ➔ 分辨種類</p>
+      </div>
+    </div>
+
+    <!-- 功能按鈕區 -->
+    <div class="flex items-center gap-2">
+      <button id="btnSound" onclick="toggleSound()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl flex items-center gap-1 transition text-sm md:text-base border border-slate-300">
+        <i class="fa-solid fa-volume-high text-indigo-600" id="soundIcon"></i>
+        <span class="hidden sm:inline">聲音</span>
+      </button>
+      <button onclick="resetCurrentQuestion()" class="px-3 py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 font-bold rounded-xl flex items-center gap-1 transition text-sm md:text-base border border-amber-300">
+        <i class="fa-solid fa-rotate-left"></i>
+        <span>重置</span>
+      </button>
+      <button onclick="nextQuestion()" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl flex items-center gap-1 shadow transition text-sm md:text-base">
+        <i class="fa-solid fa-shuffle"></i>
+        <span>隨機抽題</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- 主操作區：左右分欄響應式佈局 -->
+  <main class="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1">
+
+    <!-- 左側：具體/半具體圖形表徵區 (5/12) -->
+    <section class="lg:col-span-5 bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-col justify-between">
+      <div>
+        <!-- 表徵類型切換 -->
+        <div class="flex items-center justify-between mb-3 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+          <span class="text-xs md:text-sm font-bold text-slate-600 px-2 flex items-center gap-1">
+            <i class="fa-solid fa-shapes text-indigo-500"></i> 切換表徵：
+          </span>
+          <div class="flex gap-1">
+            <button id="btnPie" onclick="switchShape('pie')" class="px-3 py-1.5 rounded-lg text-xs md:text-sm font-bold transition flex items-center gap-1 bg-indigo-600 text-white shadow">
+              <i class="fa-solid fa-chart-pie"></i> 圓形
+            </button>
+            <button id="btnBar" onclick="switchShape('bar')" class="px-3 py-1.5 rounded-lg text-xs md:text-sm font-bold transition flex items-center gap-1 bg-slate-200 text-slate-700 hover:bg-slate-300">
+              <i class="fa-solid fa-square-poll-horizontal"></i> 長方形
+            </button>
+          </div>
+        </div>
+
+        <!-- 提示語 -->
+        <div class="bg-indigo-50 border-l-4 border-indigo-500 p-2.5 rounded-r-xl mb-3">
+          <p class="text-xs md:text-sm font-bold text-indigo-900 flex items-center gap-1.5">
+            <i class="fa-regular fa-lightbulb text-indigo-600 text-base"></i>
+            <span id="shapeHintText">圖形被【平分】成幾份？有幾份被著色呢？</span>
+          </p>
+        </div>
+
+        <!-- SVG 畫布渲染區 -->
+        <div id="visualContainer" class="min-h-[220px] md:min-h-[280px] bg-slate-50 rounded-2xl border-2 border-dashed border-slate-300 flex items-center justify-center p-4 gap-4 overflow-x-auto">
+          <!-- SVG 動態插入點 -->
+        </div>
+      </div>
+
+      <!-- 色彩圖例說明 -->
+      <div class="mt-4 pt-3 border-t border-slate-100 flex justify-around text-xs md:text-sm font-bold">
+        <div class="flex items-center gap-1.5">
+          <span class="w-4 h-4 rounded bg-emerald-500 border border-emerald-600 inline-block"></span>
+          <span class="text-slate-600">分母（平分份數）</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="w-4 h-4 rounded bg-sky-500 border border-sky-600 inline-block"></span>
+          <span class="text-slate-600">分子（塗色份數）</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 右側：三步驟闖關區 (7/12) -->
+    <section class="lg:col-span-7 flex flex-col gap-3">
+
+      <!-- 步驟 1 卡片：輸入分數 -->
+      <div id="cardStep1" class="bg-white rounded-2xl p-4 shadow-sm border-2 border-indigo-400 transition-all">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="w-7 h-7 rounded-full bg-indigo-600 text-white font-black text-sm flex items-center justify-center shadow">1</span>
+            <h2 class="font-bold text-base md:text-lg text-slate-800">用數字鍵盤選出這個分數</h2>
+          </div>
+          <span id="badgeStep1" class="hidden px-2.5 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-black rounded-full flex items-center gap-1">
+            <i class="fa-solid fa-check"></i> 完成
+          </span>
+        </div>
+
+        <!-- 步驟1內容：分數顯示區與數字鍵盤 -->
+        <div class="flex flex-col sm:flex-row items-center justify-around gap-4 bg-slate-50 p-3 rounded-xl border border-slate-200">
+          
+          <!-- 分數輸入/顯示區域 -->
+          <div class="flex items-center gap-3">
+            <div id="fractionInputGroup" class="flex items-center gap-2">
+              <!-- 帶分數整數部分（依題目顯示） -->
+              <div id="wholeBoxContainer" class="hidden flex flex-col items-center">
+                <span class="text-[10px] font-bold text-purple-600 mb-1">整數</span>
+                <input type="text" id="inputWhole" readonly onclick="setActiveInput('whole')" 
+                  class="w-12 h-14 md:w-14 md:h-16 text-center text-2xl font-black rounded-xl border-4 border-purple-300 bg-white cursor-pointer focus:outline-none focus:border-purple-600 shadow-inner">
+              </div>
+
+              <!-- 分數（分子在頂、分母在底） -->
+              <div class="flex flex-col items-center">
+                <span class="text-[10px] font-bold text-sky-600 mb-0.5">分子 (塗色)</span>
+                <input type="text" id="inputNum" readonly onclick="setActiveInput('num')" 
+                  class="w-14 h-12 md:w-16 md:h-14 text-center text-2xl font-black rounded-xl border-4 border-sky-300 bg-white cursor-pointer focus:outline-none focus:border-sky-600 shadow-inner">
+                
+                <div class="w-16 md:w-20 fraction-line my-1"></div>
+
+                <input type="text" id="inputDen" readonly onclick="setActiveInput('den')" 
+                  class="w-14 h-12 md:w-16 md:h-14 text-center text-2xl font-black rounded-xl border-4 border-emerald-400 bg-white cursor-pointer focus:outline-none focus:border-emerald-600 shadow-inner">
+                <span class="text-[10px] font-bold text-emerald-600 mt-0.5">分母 (平分)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 螢幕內數字鍵盤（支援觸控） -->
+          <div id="keypadArea" class="flex flex-col gap-1.5 w-full sm:w-auto">
+            <div class="text-xs font-bold text-slate-500 text-center sm:text-left flex items-center justify-between">
+              <span id="activeInputHint">正在輸入：<strong class="text-emerald-600">分母</strong></span>
+              <button onclick="clearActiveInput()" class="text-red-500 hover:text-red-700 text-xs font-bold underline px-1">清除</button>
+            </div>
+            <!-- 1-9 數字按鈕區 -->
+            <div class="grid grid-cols-3 gap-1.5">
+              <button onclick="pressNum('1')" class="h-11 w-11 md:h-12 md:w-12 bg-white hover:bg-slate-100 font-bold text-lg rounded-xl border border-slate-300 shadow-sm active:scale-95 transition">1</button>
+              <button onclick="pressNum('2')" class="h-11 w-11 md:h-12 md:w-12 bg-white hover:bg-slate-100 font-bold text-lg rounded-xl border border-slate-300 shadow-sm active:scale-95 transition">2</button>
+              <button onclick="pressNum('3')" class="h-11 w-11 md:h-12 md:w-12 bg-white hover:bg-slate-100 font-bold text-lg rounded-xl border border-slate-300 shadow-sm active:scale-95 transition">3</button>
+              <button onclick="pressNum('4')" class="h-11 w-11 md:h-12 md:w-12 bg-white hover:bg-slate-100 font-bold text-lg rounded-xl border border-slate-300 shadow-sm active:scale-95 transition">4</button>
+              <button onclick="pressNum('5')" class="h-11 w-11 md:h-12 md:w-12 bg-white hover:bg-slate-100 font-bold text-lg rounded-xl border border-slate-300 shadow-sm active:scale-95 transition">5</button>
+              <button onclick="pressNum('6')" class="h-11 w-11 md:h-12 md:w-12 bg-white hover:bg-slate-100 font-bold text-lg rounded-xl border border-slate-300 shadow-sm active:scale-95 transition">6</button>
+              <button onclick="pressNum('7')" class="h-11 w-11 md:h-12 md:w-12 bg-white hover:bg-slate-100 font-bold text-lg rounded-xl border border-slate-300 shadow-sm active:scale-95 transition">7</button>
+              <button onclick="pressNum('8')" class="h-11 w-11 md:h-12 md:w-12 bg-white hover:bg-slate-100 font-bold text-lg rounded-xl border border-slate-300 shadow-sm active:scale-95 transition">8</button>
+              <button onclick="pressNum('9')" class="h-11 w-11 md:h-12 md:w-12 bg-white hover:bg-slate-100 font-bold text-lg rounded-xl border border-slate-300 shadow-sm active:scale-95 transition">9</button>
+            </div>
+            <button id="btnCheckStep1" onclick="checkStep1()" class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl shadow active:scale-98 transition flex items-center justify-center gap-1 mt-1">
+              <i class="fa-solid fa-circle-check"></i> 檢查分數
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 步驟 2 卡片：與 1 的大小比較（國字按鈕 + ＜ ＝ ＞ 符號） -->
+      <div id="cardStep2" class="bg-white opacity-50 pointer-events-none rounded-2xl p-4 shadow-sm border border-slate-200 transition-all">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="w-7 h-7 rounded-full bg-slate-400 text-white font-black text-sm flex items-center justify-center shadow" id="step2Num">2</span>
+            <h2 class="font-bold text-base md:text-lg text-slate-800">這個分數和 1 比較起來怎麼樣？</h2>
+          </div>
+          <span id="badgeStep2" class="hidden px-2.5 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-black rounded-full flex items-center gap-1">
+            <i class="fa-solid fa-check"></i> 完成
+          </span>
+        </div>
+
+        <!-- 延續顯示：前面的分數數值（直式分數呈現） -->
+        <div class="flex items-center gap-3 mb-3 bg-indigo-50/70 p-2 rounded-xl text-xs md:text-sm font-bold text-indigo-900 border border-indigo-100">
+          <i class="fa-solid fa-magnifying-glass text-indigo-500"></i>
+          <span class="flex items-center gap-2">你剛才選出的分數是：<span id="displayStep1Val" class="text-indigo-700 font-black text-base inline-flex items-center">--</span></span>
+        </div>
+
+        <!-- 三個放大國字選擇按鈕 (符號為 ＜、＝、＞) -->
+        <div class="grid grid-cols-3 gap-2">
+          <button onclick="checkStep2('比1小')" class="btn-compare py-3 px-2 bg-slate-100 hover:bg-indigo-100 border-2 border-slate-300 hover:border-indigo-400 rounded-xl font-extrabold text-indigo-900 active:scale-95 transition flex flex-col items-center justify-center gap-1">
+            <span class="text-2xl md:text-3xl font-black text-indigo-600 leading-none">＜</span>
+            <span class="text-base md:text-xl font-black">比 1 小</span>
+          </button>
+          <button onclick="checkStep2('和1一樣大')" class="btn-compare py-3 px-2 bg-slate-100 hover:bg-amber-100 border-2 border-slate-300 hover:border-amber-400 rounded-xl font-extrabold text-amber-900 active:scale-95 transition flex flex-col items-center justify-center gap-1">
+            <span class="text-2xl md:text-3xl font-black text-amber-500 leading-none">＝</span>
+            <span class="text-base md:text-xl font-black">和 1 一樣大</span>
+          </button>
+          <button onclick="checkStep2('比1大')" class="btn-compare py-3 px-2 bg-slate-100 hover:bg-emerald-100 border-2 border-slate-300 hover:border-emerald-400 rounded-xl font-extrabold text-emerald-900 active:scale-95 transition flex flex-col items-center justify-center gap-1">
+            <span class="text-2xl md:text-3xl font-black text-emerald-600 leading-none">＞</span>
+            <span class="text-base md:text-xl font-black">比 1 大</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 步驟 3 卡片：分辨真分數、假分數、帶分數 -->
+      <div id="cardStep3" class="bg-white opacity-50 pointer-events-none rounded-2xl p-4 shadow-sm border border-slate-200 transition-all">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <span class="w-7 h-7 rounded-full bg-slate-400 text-white font-black text-sm flex items-center justify-center shadow" id="step3Num">3</span>
+            <h2 class="font-bold text-base md:text-lg text-slate-800">最後，選出這是哪一種分數？</h2>
+          </div>
+          <span id="badgeStep3" class="hidden px-2.5 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-black rounded-full flex items-center gap-1">
+            <i class="fa-solid fa-crown text-amber-500"></i> 太棒了！
+          </span>
+        </div>
+
+        <!-- 延續顯示：前面步驟 1 與 步驟 2 的結果（分數採用分母在下、分子在上直式呈現） -->
+        <div class="flex flex-wrap items-center gap-2 mb-3 bg-amber-50 p-2.5 rounded-xl text-xs md:text-sm font-bold text-amber-900 border border-amber-200">
+          <span>完整紀錄：</span>
+          <span class="bg-white px-2.5 py-1 rounded border border-amber-300 shadow-sm flex items-center gap-1" id="summaryFraction">分數：--</span>
+          <i class="fa-solid fa-arrow-right text-amber-400 text-xs"></i>
+          <span class="bg-white px-2.5 py-1 rounded border border-amber-300 shadow-sm" id="summaryCompare">大小：--</span>
+        </div>
+
+        <!-- 三種分數分類按鈕 -->
+        <div class="grid grid-cols-3 gap-2">
+          <button onclick="checkStep3('真分數')" class="btn-type py-3.5 px-2 bg-slate-100 hover:bg-sky-100 border-2 border-slate-300 hover:border-sky-500 rounded-xl font-bold text-sm md:text-base text-slate-700 hover:text-sky-900 active:scale-95 transition flex flex-col items-center gap-1">
+            <i class="fa-solid fa-leaf text-sky-500 text-lg"></i>
+            <span>真分數</span>
+          </button>
+          <button onclick="checkStep3('假分數')" class="btn-type py-3.5 px-2 bg-slate-100 hover:bg-purple-100 border-2 border-slate-300 hover:border-purple-500 rounded-xl font-bold text-sm md:text-base text-slate-700 hover:text-purple-900 active:scale-95 transition flex flex-col items-center gap-1">
+            <i class="fa-solid fa-gem text-purple-500 text-lg"></i>
+            <span>假分數</span>
+          </button>
+          <button onclick="checkStep3('帶分數')" class="btn-type py-3.5 px-2 bg-slate-100 hover:bg-emerald-100 border-2 border-slate-300 hover:border-emerald-500 rounded-xl font-bold text-sm md:text-base text-slate-700 hover:text-emerald-900 active:scale-95 transition flex flex-col items-center gap-1">
+            <i class="fa-solid fa-cubes text-emerald-500 text-lg"></i>
+            <span>帶分數</span>
+          </button>
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- 具體讚美與學習摘要對話框 (Modal) -->
+  <div id="praiseModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 hidden opacity-0 transition-opacity duration-300">
+    <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border-4 border-amber-300 text-center transform scale-90 transition-transform duration-300" id="modalContent">
+      <div class="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3 text-amber-500 text-4xl shadow-inner">
+        <i class="fa-solid fa-star animate-bounce"></i>
+      </div>
+      <h3 class="text-2xl font-black text-slate-800 mb-2" id="modalTitle">挑戰成功！</h3>
+      
+      <!-- 具體學習反思與讚美內容 -->
+      <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-left text-sm md:text-base text-slate-700 space-y-2 mb-5 font-bold" id="modalBody">
+        <!-- JS 動態寫入 -->
+      </div>
+
+      <button onclick="nextQuestion()" class="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-lg rounded-2xl shadow-lg active:scale-95 transition flex items-center justify-center gap-2">
+        <i class="fa-solid fa-shuffle"></i>
+        <span>隨機抽下一題</span>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // -------------------------------------------------------------
+    // 1. 題庫與狀態管理
+    // -------------------------------------------------------------
+    const questionBank = [
+      { id: 1, type: 'proper', whole: 0, num: 3, den: 4, compare: '比1小', name: '真分數', prompt: '分子 (3) 比分母 (4) 小，佔不到 1 個完整的圖形。' },
+      { id: 2, type: 'proper', whole: 0, num: 2, den: 5, compare: '比1小', name: '真分數', prompt: '分子 (2) 比分母 (5) 小，代表塗色部分比 1 小。' },
+      { id: 3, type: 'improper_equal', whole: 0, num: 4, den: 4, compare: '和1一樣大', name: '假分數', prompt: '分子 (4) 和分母 (4) 一樣大，剛好塗滿 1 個完整的圖形！' },
+      { id: 4, type: 'improper_equal', whole: 0, num: 3, den: 3, compare: '和1一樣大', name: '假分數', prompt: '分子 (3) 等於分母 (3)，剛好等於 1。' },
+      { id: 5, type: 'over_one', whole: 1, num: 1, den: 4, compare: '比1大', prompt: '超過 1 個完整的圖形囉！' },
+      { id: 6, type: 'over_one', whole: 2, num: 1, den: 3, compare: '比1大', prompt: '包含完整個數與真分數部分。' },
+      { id: 7, type: 'over_one', whole: 1, num: 2, den: 3, compare: '比1大', prompt: '圖形超過了 1 全滿！' },
+      { id: 8, type: 'proper', whole: 0, num: 5, den: 8, compare: '比1小', name: '真分數', prompt: '分子 (5) 比分母 (8) 小，是真分數。' }
+    ];
+
+    let currentQIndex = 0;
+    let currentQuestion = null;
+    let currentShape = 'pie'; // 'pie' 或 'bar'
+    let activeInput = 'den';  // 預設先輸入分母 ('den', 'num', 'whole')
+    let isSoundOn = true;
+
+    // 狀態追蹤
+    let step1Done = false;
+    let step2Done = false;
+    let step3Done = false;
+
+    // 格式化直式分數 HTML (分子在上、分母在下)
+    function getVerticalFractionHTML(whole, num, den) {
+      if (whole > 0) {
+        return `<span class="inline-flex items-center gap-1 font-black"><span class="text-lg md:text-xl text-purple-700">${whole}</span><span class="inline-flex flex-col items-center text-xs md:text-sm leading-none px-0.5"><span class="text-sky-600 font-bold border-b-2 border-slate-700 pb-0.5 w-full text-center">${num}</span><span class="text-emerald-600 font-bold pt-0.5 w-full text-center">${den}</span></span></span>`;
+      } else {
+        return `<span class="inline-flex items-center font-black"><span class="inline-flex flex-col items-center text-xs md:text-sm leading-none px-0.5"><span class="text-sky-600 font-bold border-b-2 border-slate-700 pb-0.5 w-full text-center">${num}</span><span class="text-emerald-600 font-bold pt-0.5 w-full text-center">${den}</span></span></span>`;
+      }
+    }
+
+    // 音效 (Web Audio API)
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playBeep(freq = 440, type = 'sine', duration = 0.15) {
+      if (!isSoundOn) return;
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {}
+    }
+
+    function toggleSound() {
+      isSoundOn = !isSoundOn;
+      const icon = document.getElementById('soundIcon');
+      icon.className = isSoundOn ? 'fa-solid fa-volume-high text-indigo-600' : 'fa-solid fa-volume-xmark text-slate-400';
+    }
+
+    // -------------------------------------------------------------
+    // 2. 初始化與載入題目
+    // -------------------------------------------------------------
+    window.onload = () => {
+      loadQuestion(0);
+    };
+
+    function loadQuestion(index) {
+      currentQIndex = index % questionBank.length;
+      const rawQ = questionBank[currentQIndex];
+
+      // 複製題目資訊並針對大於 1 的題目隨機選取「假分數」或「帶分數」表達法
+      currentQuestion = { ...rawQ };
+
+      if (rawQ.type === 'over_one') {
+        const useMixed = Math.random() < 0.5; // 50% 隨機選擇帶分數或假分數
+        if (useMixed) {
+          currentQuestion.inputFormat = 'mixed';
+          currentQuestion.expectedWhole = rawQ.whole;
+          currentQuestion.expectedNum = rawQ.num;
+          currentQuestion.expectedDen = rawQ.den;
+          currentQuestion.name = '帶分數';
+        } else {
+          currentQuestion.inputFormat = 'improper';
+          currentQuestion.expectedWhole = 0;
+          currentQuestion.expectedNum = rawQ.whole * rawQ.den + rawQ.num; // 換算成假分數分子
+          currentQuestion.expectedDen = rawQ.den;
+          currentQuestion.name = '假分數';
+        }
+      } else {
+        currentQuestion.inputFormat = 'improper';
+        currentQuestion.expectedWhole = rawQ.whole;
+        currentQuestion.expectedNum = rawQ.num;
+        currentQuestion.expectedDen = rawQ.den;
+      }
+
+      // 重置欄位與狀態
+      step1Done = false;
+      step2Done = false;
+      step3Done = false;
+
+      document.getElementById('inputNum').value = '';
+      document.getElementById('inputDen').value = '';
+      document.getElementById('inputWhole').value = '';
+
+      // 控制帶分數整數框顯示
+      const wholeContainer = document.getElementById('wholeBoxContainer');
+      if (currentQuestion.inputFormat === 'mixed') {
+        wholeContainer.classList.remove('hidden');
+        setActiveInput('whole'); // 若有整數，順序：整數 ➔ 分母 ➔ 分子
+      } else {
+        wholeContainer.classList.add('hidden');
+        setActiveInput('den'); // 若無整數，順序：分母 ➔ 分子
+      }
+
+      // UI 重置卡片鎖定狀態
+      resetCardUI();
+
+      // 渲染 SVG 幾何圖形表徵
+      renderVisuals();
+    }
+
+    function resetCurrentQuestion() {
+      loadQuestion(currentQIndex);
+    }
+
+    function nextQuestion() {
+      closePraiseModal();
+      // 隨機抽選與當前題目不同的新題目
+      let newIndex = currentQIndex;
+      if (questionBank.length > 1) {
+        while (newIndex === currentQIndex) {
+          newIndex = Math.floor(Math.random() * questionBank.length);
+        }
+      }
+      loadQuestion(newIndex);
+    }
+
+    // -------------------------------------------------------------
+    // 3. SVG 圖形表徵繪製 (CRA 具體/半具體)
+    // -------------------------------------------------------------
+    function switchShape(shape) {
+      currentShape = shape;
+      document.getElementById('btnPie').className = shape === 'pie' 
+        ? 'px-3 py-1.5 rounded-lg text-xs md:text-sm font-bold transition flex items-center gap-1 bg-indigo-600 text-white shadow'
+        : 'px-3 py-1.5 rounded-lg text-xs md:text-sm font-bold transition flex items-center gap-1 bg-slate-200 text-slate-700 hover:bg-slate-300';
+      
+      document.getElementById('btnBar').className = shape === 'bar'
+        ? 'px-3 py-1.5 rounded-lg text-xs md:text-sm font-bold transition flex items-center gap-1 bg-indigo-600 text-white shadow'
+        : 'px-3 py-1.5 rounded-lg text-xs md:text-sm font-bold transition flex items-center gap-1 bg-slate-200 text-slate-700 hover:bg-slate-300';
+
+      renderVisuals();
+    }
+
+    function renderVisuals() {
+      const container = document.getElementById('visualContainer');
+      container.innerHTML = '';
+
+      const { expectedWhole, expectedNum, expectedDen, inputFormat } = currentQuestion;
+
+      let totalFilledParts = (inputFormat === 'mixed')
+        ? expectedWhole * expectedDen + expectedNum
+        : expectedNum;
+      
+      const den = expectedDen;
+      let totalUnits = Math.ceil(totalFilledParts / den) || 1;
+      let remainingToColor = totalFilledParts;
+
+      for (let u = 0; u < totalUnits; u++) {
+        const fillInThisUnit = Math.min(den, remainingToColor);
+        remainingToColor -= fillInThisUnit;
+
+        if (currentShape === 'pie') {
+          container.appendChild(createPieSVG(den, fillInThisUnit, u + 1));
+        } else {
+          container.appendChild(createBarSVG(den, fillInThisUnit, u + 1));
+        }
+      }
+    }
+
+    // 建立圓形 SVG (等分灰色線 #94a3b8)
+    function createPieSVG(den, filled, unitIndex) {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('width', '140');
+      svg.setAttribute('height', '140');
+      svg.setAttribute('viewBox', '0 0 100 100');
+      svg.classList.add('drop-shadow-md', 'flex-shrink-0');
+
+      const cx = 50, cy = 50, r = 42;
+
+      const bgCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      bgCircle.setAttribute('cx', cx);
+      bgCircle.setAttribute('cy', cy);
+      bgCircle.setAttribute('r', r);
+      bgCircle.setAttribute('fill', '#f1f5f9');
+      bgCircle.setAttribute('stroke', '#64748b');
+      bgCircle.setAttribute('stroke-width', '2');
+      svg.appendChild(bgCircle);
+
+      for (let i = 0; i < den; i++) {
+        const startAngle = (i * 360 / den) - 90;
+        const endAngle = ((i + 1) * 360 / den) - 90;
+        
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const x1 = cx + r * Math.cos(Math.PI * startAngle / 180);
+        const y1 = cy + r * Math.sin(Math.PI * startAngle / 180);
+        const x2 = cx + r * Math.cos(Math.PI * endAngle / 180);
+        const y2 = cy + r * Math.sin(Math.PI * endAngle / 180);
+
+        const largeArc = (endAngle - startAngle) > 180 ? 1 : 0;
+        const d = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+
+        path.setAttribute('d', d);
+        path.setAttribute('fill', i < filled ? '#38bdf8' : '#ffffff');
+        path.setAttribute('stroke', '#94a3b8');
+        path.setAttribute('stroke-width', '2');
+        svg.appendChild(path);
+      }
+
+      const outerCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      outerCircle.setAttribute('cx', cx);
+      outerCircle.setAttribute('cy', cy);
+      outerCircle.setAttribute('r', r);
+      outerCircle.setAttribute('fill', 'none');
+      outerCircle.setAttribute('stroke', '#334155');
+      outerCircle.setAttribute('stroke-width', '2.5');
+      svg.appendChild(outerCircle);
+
+      return svg;
+    }
+
+    // 建立長方形 SVG (等分灰色線 #94a3b8)
+    function createBarSVG(den, filled, unitIndex) {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('width', '150');
+      svg.setAttribute('height', '100');
+      svg.setAttribute('viewBox', '0 0 150 100');
+      svg.classList.add('drop-shadow-md', 'flex-shrink-0');
+
+      const x = 10, y = 20, width = 130, height = 60;
+      const cellWidth = width / den;
+
+      for (let i = 0; i < den; i++) {
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', x + i * cellWidth);
+        rect.setAttribute('y', y);
+        rect.setAttribute('width', cellWidth);
+        rect.setAttribute('height', height);
+        rect.setAttribute('fill', i < filled ? '#38bdf8' : '#ffffff');
+        rect.setAttribute('stroke', '#94a3b8');
+        rect.setAttribute('stroke-width', '2');
+        svg.appendChild(rect);
+      }
+
+      const outerRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      outerRect.setAttribute('x', x);
+      outerRect.setAttribute('y', y);
+      outerRect.setAttribute('width', width);
+      outerRect.setAttribute('height', height);
+      outerRect.setAttribute('fill', 'none');
+      outerRect.setAttribute('stroke', '#334155');
+      outerRect.setAttribute('stroke-width', '2.5');
+      outerRect.setAttribute('rx', '4');
+      svg.appendChild(outerRect);
+
+      return svg;
+    }
+
+    // -------------------------------------------------------------
+    // 4. 步驟一：鍵盤輸入與焦點自動跳轉 (順序：整數 ➔ 分母 ➔ 分子)
+    // -------------------------------------------------------------
+    function setActiveInput(target) {
+      if (step1Done) return;
+      activeInput = target;
+
+      const numIn = document.getElementById('inputNum');
+      const denIn = document.getElementById('inputDen');
+      const wholeIn = document.getElementById('inputWhole');
+
+      numIn.classList.remove('border-amber-400', 'ring-4', 'ring-amber-200');
+      denIn.classList.remove('border-amber-400', 'ring-4', 'ring-amber-200');
+      wholeIn.classList.remove('border-amber-400', 'ring-4', 'ring-amber-200');
+
+      const hintText = document.getElementById('activeInputHint');
+
+      if (target === 'whole') {
+        wholeIn.classList.add('border-amber-400', 'ring-4', 'ring-amber-200');
+        hintText.innerHTML = '正在輸入：<strong class="text-purple-600">整數 (完整個數)</strong>';
+      } else if (target === 'den') {
+        denIn.classList.add('border-amber-400', 'ring-4', 'ring-amber-200');
+        hintText.innerHTML = '正在輸入：<strong class="text-emerald-600">分母 (平分幾份)</strong>';
+      } else if (target === 'num') {
+        numIn.classList.add('border-amber-400', 'ring-4', 'ring-amber-200');
+        hintText.innerHTML = '正在輸入：<strong class="text-sky-600">分子 (塗色幾份)</strong>';
+      }
+      playBeep(300, 'sine', 0.05);
+    }
+
+    function pressNum(digit) {
+      if (step1Done) return;
+      playBeep(500, 'sine', 0.08);
+
+      let targetEl = null;
+      if (activeInput === 'whole') targetEl = document.getElementById('inputWhole');
+      if (activeInput === 'den') targetEl = document.getElementById('inputDen');
+      if (activeInput === 'num') targetEl = document.getElementById('inputNum');
+
+      if (targetEl) {
+        targetEl.value = digit; // 1-9 單位數字直接寫入
+
+        // 自動跳至下一個輸入框（順序：整數 ➔ 分母 ➔ 分子）
+        if (activeInput === 'whole') {
+          setActiveInput('den');
+        } else if (activeInput === 'den') {
+          setActiveInput('num');
+        }
+      }
+    }
+
+    function clearActiveInput() {
+      if (step1Done) return;
+      playBeep(250, 'triangle', 0.1);
+      if (activeInput === 'whole') document.getElementById('inputWhole').value = '';
+      if (activeInput === 'den') document.getElementById('inputDen').value = '';
+      if (activeInput === 'num') document.getElementById('inputNum').value = '';
+    }
+
+    // 驗證步驟 1
+    function checkStep1() {
+      const userDen = parseInt(document.getElementById('inputDen').value) || 0;
+      const userNum = parseInt(document.getElementById('inputNum').value) || 0;
+      const userWhole = parseInt(document.getElementById('inputWhole').value) || 0;
+
+      const { expectedDen, expectedNum, expectedWhole, inputFormat } = currentQuestion;
+
+      let isCorrect = false;
+
+      if (inputFormat === 'mixed') {
+        isCorrect = (userDen === expectedDen && userNum === expectedNum && userWhole === expectedWhole);
+      } else {
+        isCorrect = (userDen === expectedDen && userNum === expectedNum);
+      }
+
+      if (isCorrect) {
+        playBeep(600, 'sine', 0.2);
+        step1Done = true;
+
+        // 更新 UI 狀態
+        document.getElementById('badgeStep1').classList.remove('hidden');
+        document.getElementById('keypadArea').classList.add('opacity-40', 'pointer-events-none');
+        document.getElementById('cardStep1').className = "bg-white rounded-2xl p-4 shadow-sm border-2 border-emerald-400 bg-emerald-50/20";
+
+        // 產生直式分數 HTML (分子在上、分母在下)
+        const verticalHTML = getVerticalFractionHTML(userWhole, userNum, userDen);
+
+        document.getElementById('displayStep1Val').innerHTML = verticalHTML;
+        document.getElementById('summaryFraction').innerHTML = `分數：${verticalHTML}`;
+
+        // 解鎖步驟 2
+        unlockStep2();
+      } else {
+        playBeep(200, 'sawtooth', 0.25);
+        showFeedbackNotice('再仔細算算看喔！先數數看一個圖形【平分成幾份】填在分母，再數數看【塗色佔了幾份】填在分子。');
+      }
+    }
+
+    // -------------------------------------------------------------
+    // 5. 步驟二與步驟三解鎖與驗證
+    // -------------------------------------------------------------
+    function unlockStep2() {
+      const card2 = document.getElementById('cardStep2');
+      card2.classList.remove('opacity-50', 'pointer-events-none');
+      card2.classList.add('border-indigo-400', 'ring-2', 'ring-indigo-200');
+      document.getElementById('step2Num').className = "w-7 h-7 rounded-full bg-indigo-600 text-white font-black text-sm flex items-center justify-center shadow";
+    }
+
+    function checkStep2(userChoice) {
+      if (!step1Done || step2Done) return;
+
+      if (userChoice === currentQuestion.compare) {
+        playBeep(700, 'sine', 0.2);
+        step2Done = true;
+
+        document.getElementById('badgeStep2').classList.remove('hidden');
+        document.getElementById('summaryCompare').textContent = `與1比較：${userChoice}`;
+
+        // 高亮已選擇的按鈕
+        const btnComp = document.querySelectorAll('.btn-compare');
+        btnComp.forEach(btn => {
+          if (btn.textContent.includes(userChoice)) {
+            btn.className = "py-3 px-2 bg-emerald-500 text-white border-2 border-emerald-600 rounded-xl font-black text-lg md:text-xl shadow flex flex-col items-center justify-center gap-1";
+          } else {
+            btn.classList.add('opacity-40', 'pointer-events-none');
+          }
+        });
+
+        // 解鎖步驟 3
+        unlockStep3();
+      } else {
+        playBeep(220, 'sawtooth', 0.25);
+        showFeedbackNotice(`再看一眼圖形喔！塗色部分有沒有滿 1 個圖形呢？這時候它應該是「${currentQuestion.compare}」。`);
+      }
+    }
+
+    function unlockStep3() {
+      const card3 = document.getElementById('cardStep3');
+      card3.classList.remove('opacity-50', 'pointer-events-none');
+      card3.classList.add('border-indigo-400', 'ring-2', 'ring-indigo-200');
+      document.getElementById('step3Num').className = "w-7 h-7 rounded-full bg-indigo-600 text-white font-black text-sm flex items-center justify-center shadow";
+    }
+
+    function checkStep3(userChoice) {
+      if (!step2Done || step3Done) return;
+
+      if (userChoice === currentQuestion.name) {
+        playBeep(800, 'sine', 0.3);
+        step3Done = true;
+
+        document.getElementById('badgeStep3').classList.remove('hidden');
+
+        // 選擇完成後維持按鈕原本樣式，不塗滿顏色標記
+        // 顯示讚美對話框
+        triggerPraiseModal();
+      } else {
+        playBeep(220, 'sawtooth', 0.25);
+        showFeedbackNotice(`想想看，分子比分母小是「真分數」；分子大於或等於分母是「假分數」；有整數的是「帶分數」。這一題是「${currentQuestion.name}」喔！`);
+      }
+    }
+
+    // -------------------------------------------------------------
+    // 6. 正向鼓勵與低挫折反饋 UI
+    // -------------------------------------------------------------
+    function triggerPraiseModal() {
+      const modal = document.getElementById('praiseModal');
+      const content = document.getElementById('modalContent');
+      const body = document.getElementById('modalBody');
+
+      const verticalHTML = getVerticalFractionHTML(
+        currentQuestion.expectedWhole,
+        currentQuestion.expectedNum,
+        currentQuestion.expectedDen
+      );
+
+      body.innerHTML = `
+        <div class="p-2.5 bg-emerald-100/70 text-emerald-900 rounded-xl mb-2 flex items-center gap-2">
+          <i class="fa-solid fa-circle-check text-emerald-600 text-lg"></i>
+          <span>你的思考過程非常正確！</span>
+        </div>
+        <p class="flex items-center gap-1">1. 你精確表達了分數：<span class="inline-flex items-center">${verticalHTML}</span></p>
+        <p>2. 你觀察出這個分數：<span class="text-indigo-600 font-black">${currentQuestion.compare}</span></p>
+        <p>3. 你正確分類它是：<span class="text-indigo-600 font-black">${currentQuestion.name}</span></p>
+        <div class="mt-2 pt-2 border-t border-slate-200 text-xs text-slate-500 font-normal">
+          💡 <strong>觀念小結：</strong>${currentQuestion.prompt}
+        </div>
+      `;
+
+      modal.classList.remove('hidden');
+      setTimeout(() => {
+        modal.classList.remove('opacity-0');
+        content.classList.remove('scale-90');
+        content.classList.add('scale-100');
+      }, 50);
+    }
+
+    function closePraiseModal() {
+      const modal = document.getElementById('praiseModal');
+      const content = document.getElementById('modalContent');
+      modal.classList.add('opacity-0');
+      content.classList.remove('scale-100');
+      content.classList.add('scale-90');
+      setTimeout(() => {
+        modal.classList.add('hidden');
+      }, 300);
+    }
+
+    function resetCardUI() {
+      // Step 1 UI 重置
+      document.getElementById('badgeStep1').classList.add('hidden');
+      document.getElementById('keypadArea').classList.remove('opacity-40', 'pointer-events-none');
+      document.getElementById('cardStep1').className = "bg-white rounded-2xl p-4 shadow-sm border-2 border-indigo-400 transition-all";
+
+      // Step 2 UI 重置
+      document.getElementById('badgeStep2').classList.add('hidden');
+      document.getElementById('displayStep1Val').innerHTML = "--";
+      const card2 = document.getElementById('cardStep2');
+      card2.className = "bg-white opacity-50 pointer-events-none rounded-2xl p-4 shadow-sm border border-slate-200 transition-all";
+      document.getElementById('step2Num').className = "w-7 h-7 rounded-full bg-slate-400 text-white font-black text-sm flex items-center justify-center shadow";
+
+      const btnComp = document.querySelectorAll('.btn-compare');
+      btnComp[0].className = "btn-compare py-3 px-2 bg-slate-100 hover:bg-indigo-100 border-2 border-slate-300 hover:border-indigo-400 rounded-xl font-extrabold text-indigo-900 active:scale-95 transition flex flex-col items-center justify-center gap-1";
+      btnComp[1].className = "btn-compare py-3 px-2 bg-slate-100 hover:bg-amber-100 border-2 border-slate-300 hover:border-amber-400 rounded-xl font-extrabold text-amber-900 active:scale-95 transition flex flex-col items-center justify-center gap-1";
+      btnComp[2].className = "btn-compare py-3 px-2 bg-slate-100 hover:bg-emerald-100 border-2 border-slate-300 hover:border-emerald-400 rounded-xl font-extrabold text-emerald-900 active:scale-95 transition flex flex-col items-center justify-center gap-1";
+
+      // Step 3 UI 重置
+      document.getElementById('badgeStep3').classList.add('hidden');
+      document.getElementById('summaryFraction').innerHTML = "分數：--";
+      document.getElementById('summaryCompare').textContent = "大小：--";
+      const card3 = document.getElementById('cardStep3');
+      card3.className = "bg-white opacity-50 pointer-events-none rounded-2xl p-4 shadow-sm border border-slate-200 transition-all";
+      document.getElementById('step3Num').className = "w-7 h-7 rounded-full bg-slate-400 text-white font-black text-sm flex items-center justify-center shadow";
+
+      const btnType = document.querySelectorAll('.btn-type');
+      btnType.forEach(btn => {
+        btn.className = "btn-type py-3.5 px-2 bg-slate-100 hover:bg-sky-100 border-2 border-slate-300 hover:border-sky-500 rounded-xl font-bold text-sm md:text-base text-slate-700 hover:text-sky-900 active:scale-95 transition flex flex-col items-center gap-1";
+      });
+    }
+
+    function showFeedbackNotice(msg) {
+      let toast = document.createElement('div');
+      toast.className = "fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white font-bold text-sm px-4 py-3 rounded-2xl shadow-xl z-50 flex items-center gap-2 max-w-sm text-center border border-slate-600 animate-bounce";
+      toast.innerHTML = `<i class="fa-solid fa-circle-info text-amber-400 text-base"></i> <span>${msg}</span>`;
+      document.body.appendChild(toast);
+      setTimeout(() => {
+        toast.remove();
+      }, 3200);
+    }
+  </script>
+</body>
+</html>
